@@ -4,6 +4,7 @@ import 'package:flash_chat_app/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+User? loggedInUser;
 
 class ChatScreen extends StatefulWidget {
   static String id = 'chat_screen';
@@ -16,7 +17,6 @@ class _ChatScreenState extends State<ChatScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final messageTextController = TextEditingController();
 
-  User? loggedInUser;
   String? messageText;
   @override
   void initState() {
@@ -36,14 +36,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void messagesStream() async {
-    await for (var snapshot in _firestore.collection('messages').snapshots()) {
-      for (var message in snapshot.docs) {
-        print(message.data());
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,9 +45,9 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
               icon: Icon(Icons.close),
               onPressed: () {
-                messagesStream();
-                // _auth.signOut();
-                // Navigator.pop(context);
+                // messagesStream();
+                _auth.signOut();
+                Navigator.pop(context);
               }),
         ],
         title: Text('⚡️Chat'),
@@ -84,11 +76,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   TextButton(
                     onPressed: () {
-                      _firestore.collection('messages').add(
-                          {'text': messageText, 'sender': loggedInUser!.email});
+                      if (messageText != null) {
+                        _firestore.collection('messages v').add({
+                          'text': messageText,
+                          'sender': loggedInUser!.email,
+                          'timestamp': FieldValue.serverTimestamp(),
+                        });
+                      }
                       messageTextController.clear();
                     },
-                    child: Text(
+                    child: const Text(
                       'Send',
                       style: kSendButtonTextStyle,
                     ),
@@ -111,7 +108,10 @@ class MessagesStream extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      stream: _firestore.collection('messages').snapshots(),
+      stream: _firestore
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(
@@ -125,12 +125,16 @@ class MessagesStream extends StatelessWidget {
         for (var message in messages) {
           final messageText = message.data()['text'];
           final messageSender = message.data()['sender'];
-          final messageWidget =
-              MessageBubble(text: messageText, sender: messageSender);
+          final currentUser = loggedInUser!.email;
+          final messageWidget = MessageBubble(
+              text: messageText,
+              sender: messageSender,
+              isMe: currentUser == messageSender);
           messageWidgets.add(messageWidget);
         }
         return Expanded(
           child: ListView(
+            reverse: true,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
             children: messageWidgets,
           ),
@@ -141,9 +145,10 @@ class MessagesStream extends StatelessWidget {
 }
 
 class MessageBubble extends StatelessWidget {
-  MessageBubble({required this.text, required this.sender});
+  MessageBubble({required this.text, required this.sender, required this.isMe});
   final String sender;
   final String text;
+  final bool isMe;
 
   @override
   Widget build(BuildContext context) {
@@ -151,18 +156,25 @@ class MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.all(10.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Text(sender, style: TextStyle(fontSize: 12, color: Colors.black54)),
+          Text(sender,
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
           Material(
-            borderRadius: BorderRadius.circular(25),
-            color: Colors.lightBlueAccent,
+            borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(isMe ? 30 : 0),
+                topRight: Radius.circular(isMe ? 0 : 30),
+                bottomLeft: const Radius.circular(30),
+                bottomRight: const Radius.circular(30)),
+            color: isMe ? Colors.lightBlueAccent : Colors.white,
             elevation: 5,
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(10.0),
               child: Text(
                 text,
-                style: TextStyle(fontSize: 18),
+                style: TextStyle(
+                    fontSize: 16, color: isMe ? Colors.white : Colors.black54),
               ),
             ),
           ),

@@ -77,7 +77,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   TextButton(
                     onPressed: () {
                       if (messageText != null) {
-                        _firestore.collection('messages v').add({
+                        _firestore.collection('messages').add({
                           'text': messageText,
                           'sender': loggedInUser!.email,
                           'timestamp': FieldValue.serverTimestamp(),
